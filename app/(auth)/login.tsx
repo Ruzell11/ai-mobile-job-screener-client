@@ -1,20 +1,20 @@
+// app/(auth)/login.tsx
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,16 +43,20 @@ export default function LoginScreen() {
     try {
       const result = await login(email.toLowerCase().trim(), password);
 
-      if (result.success) {
-        // Success! Auth state change will trigger redirect in _layout.tsx
-        Alert.alert('Success', 'Login successful!', [
-          {
-            text: 'OK',
-            onPress: () => {
-              // The useEffect in _layout.tsx will handle navigation
-            },
-          },
-        ]);
+      if (result.success && result.user) {
+        // Success! Redirect based on user role
+        const userRole = result.user.role;
+
+        if (userRole === 'EMPLOYER') {
+          // Redirect to employer dashboard
+          router.replace('/(employer)');
+        } else if (userRole === 'JOB_SEEKER') {
+          // Redirect to job seeker dashboard
+          router.replace('/(jobseeker)');
+        } else {
+          // Fallback to tabs
+          router.replace('/(tabs)');
+        }
       } else {
         // Show error message from backend
         Alert.alert(

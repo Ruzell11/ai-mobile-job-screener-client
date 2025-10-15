@@ -1,3 +1,4 @@
+// app/(jobseeker)/index.tsx
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -11,49 +12,134 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { employerAPI } from '../config/api';
+import { jobSeekerAPI } from '../config/api';
 import { useAuth } from '../context/AuthContext';
 
 interface DashboardStats {
-  totalJobs: number;
-  activeJobs: number;
   totalApplications: number;
   pendingApplications: number;
   interviewsScheduled: number;
-  viewsThisMonth: number;
+  savedJobsCount: number;
+  profileViewsCount: number;
+  profileCompletion: number;
 }
 
 interface RecentApplication {
   id: string;
   jobTitle: string;
-  candidateName: string;
+  companyName: string;
+  companyLogo: string | null;
   appliedAt: string;
   status: string;
 }
+interface Skill {
+  id: string;
+  skill: {
+    id: string;
+    name: string;
+  };
+  proficiency: number;
+  yearsOfExp: number;
+}
 
-const EmployerDashboard: React.FC = () => {
-  const { user, logout } = useAuth(); // ✅ Add logout
+interface Experience {
+  id: string;
+  jobTitle: string;
+  company: string;
+  location: string;
+  startDate: string;
+  endDate: string | null;
+  description: string;
+  isCurrent: boolean;
+}
+
+interface Education {
+  id: string;
+  institution: string;
+  degree: string;
+  fieldOfStudy: string;
+  startDate: string;
+  endDate: string | null;
+  grade: string | null;
+  currentlyStudying: boolean;
+}
+
+interface JobSeekerProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  location: string;
+  bio: string;
+  profilePicture: string | null;
+  resumeUrl: string | null;
+  skills: Skill[] | null;
+  experiences: Experience[] | null;
+  educations: Education[] | null;
+  user: {
+    email: string;
+    createdAt: string;
+  };
+}
+const JobSeekerDashboard: React.FC = () => {
+  const { user, logout } = useAuth();
   const router = useRouter();
 
   const [stats, setStats] = useState<DashboardStats>({
-    totalJobs: 0,
-    activeJobs: 0,
     totalApplications: 0,
     pendingApplications: 0,
     interviewsScheduled: 0,
-    viewsThisMonth: 0,
+    savedJobsCount: 0,
+    profileViewsCount: 0,
+    profileCompletion: 0,
   });
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+    const [profile, setProfile] = useState<JobSeekerProfile | null>(null);
 
   useEffect(() => {
     loadDashboardData();
+    loadProfile();
   }, []);
 
+   const loadProfile = async () => {
+      try {
+        const response = await jobSeekerAPI.getProfile();
+        console.log('Profile response:', response.data);
+        
+        let profileData = null;
+        
+        // Handle different response formats
+        if (response.data?.data) {
+          profileData = response.data.data;
+        } else if (response.data?.profile) {
+          profileData = response.data.profile;
+        } else if (response.data) {
+          profileData = response.data;
+        }
+        
+        // Ensure arrays are initialized
+        if (profileData) {
+          setProfile({
+            ...profileData,
+            skills: Array.isArray(profileData.skills) ? profileData.skills : [],
+            experiences: Array.isArray(profileData.experiences) ? profileData.experiences : [],
+            educations: Array.isArray(profileData.educations) ? profileData.educations : [],
+          });
+        }
+      } catch (error: any) {
+        console.error('Error loading profile:', error);
+        console.error('Error response:', error.response?.data);
+        Alert.alert('Error', 'Failed to load profile');
+      } finally {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
+    };
   const loadDashboardData = async () => {
     try {
-      const response = await employerAPI.getDashboard();
+      const response = await jobSeekerAPI.getDashboard();
       
       if (response.data?.data) {
         setStats(response.data.data.stats || stats);
@@ -67,12 +153,48 @@ const EmployerDashboard: React.FC = () => {
     }
   };
 
+    const calculateProfileCompletion = (): number => {
+    if (!profile) return 0;
+
+    let score = 0;
+    const weights = {
+      basicInfo: 20,
+      skills: 25,
+      experience: 25,
+      education: 20,
+      resume: 10,
+    };
+
+    if (profile.firstName && profile.lastName && profile.phone) {
+      score += weights.basicInfo;
+    }
+
+    if (Array.isArray(profile.skills) && profile.skills.length > 0) {
+      score += weights.skills;
+    }
+
+    if (Array.isArray(profile.experiences) && profile.experiences.length > 0) {
+      score += weights.experience;
+    }
+
+    if (Array.isArray(profile.educations) && profile.educations.length > 0) {
+      score += weights.education;
+    }
+
+    if (profile.resumeUrl) {
+      score += weights.resume;
+    }
+
+    return Math.round(score);
+  };
+
+  const profileCompletion = calculateProfileCompletion();
   const onRefresh = () => {
     setRefreshing(true);
     loadDashboardData();
+    loadProfile();
   };
 
-  // ✅ Add handleLogout function
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -87,7 +209,6 @@ const EmployerDashboard: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            // Navigation will be handled by AuthContext
           },
         },
       ]
@@ -129,6 +250,12 @@ const EmployerDashboard: React.FC = () => {
     return date.toLocaleDateString();
   };
 
+  const getProfileCompletionColor = (completion: number): string => {
+    if (completion >= 80) return '#4CAF50';
+    if (completion >= 50) return '#FF9800';
+    return '#F44336';
+  };
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -147,18 +274,15 @@ const EmployerDashboard: React.FC = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.companyName}>
-            {user?.profile?.companyName || 'Company'}
+          <Text style={styles.userName}>
+            {user?.profile?.firstName || 'Job Seeker'}
           </Text>
         </View>
         
-        {/* ✅ Updated header buttons with logout */}
         <View style={styles.headerButtons}>
           <TouchableOpacity 
             style={styles.notificationButton}
-            onPress={() => {
-              Alert.alert('Info', 'Notifications coming soon');
-            }}
+            onPress={() => router.push('/(jobseeker)/notifications')}
           >
             <MaterialIcons name="notifications" size={28} color="#333" />
             {stats.pendingApplications > 0 && (
@@ -179,25 +303,65 @@ const EmployerDashboard: React.FC = () => {
         </View>
       </View>
 
+      {/* Profile Completion Banner */}
+      {profileCompletion < 100 && (
+        <View style={styles.profileCompletionCard}>
+          <View style={styles.profileCompletionHeader}>
+            <MaterialIcons 
+              name="account-circle" 
+              size={32} 
+              color={getProfileCompletionColor(profileCompletion)} 
+            />
+            <View style={styles.profileCompletionInfo}>
+              <Text style={styles.profileCompletionTitle}>Complete Your Profile</Text>
+              <Text style={styles.profileCompletionSubtitle}>
+                {profileCompletion}% Complete - Get noticed by employers!
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarBackground}>
+              <View 
+                style={[
+                  styles.progressBarFill, 
+                  { 
+                    width: `${profileCompletion}%`,
+                    backgroundColor: getProfileCompletionColor(profileCompletion)
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressText}>{profileCompletion}%</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.completeProfileButton}
+            onPress={() => router.push('/(jobseeker)/profile')}
+          >
+            <Text style={styles.completeProfileButtonText}>Complete Now</Text>
+            <MaterialIcons name="arrow-forward" size={16} color="#4A90E2" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Statistics Cards */}
       <View style={styles.statsContainer}>
         <View style={styles.statsRow}>
           <TouchableOpacity
             style={[styles.statCard, { backgroundColor: '#4A90E2' }]}
-            onPress={() => router.push('/(employer)/my-jobs')}
+            onPress={() => router.push('/(jobseeker)/my-applications')}
           >
-            <MaterialIcons name="work" size={32} color="#fff" />
-            <Text style={styles.statValue}>{stats.activeJobs}</Text>
-            <Text style={styles.statLabel}>Active Jobs</Text>
+            <MaterialIcons name="description" size={32} color="#fff" />
+            <Text style={styles.statValue}>{stats.totalApplications}</Text>
+            <Text style={styles.statLabel}>Applications</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.statCard, { backgroundColor: '#FF9800' }]}
-            onPress={() => {
-              Alert.alert('Info', 'View all applications');
-            }}
+            onPress={() => router.push('/(jobseeker)/my-applications')}
           >
-            <MaterialIcons name="description" size={32} color="#fff" />
+            <MaterialIcons name="pending" size={32} color="#fff" />
             <Text style={styles.statValue}>{stats.pendingApplications}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </TouchableOpacity>
@@ -205,10 +369,8 @@ const EmployerDashboard: React.FC = () => {
 
         <View style={styles.statsRow}>
           <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: '#4CAF50' }]}
-            onPress={() => {
-              Alert.alert('Info', 'View interviews');
-            }}
+            style={[styles.statCard, { backgroundColor: '#9C27B0' }]}
+            onPress={() => router.push('/(jobseeker)/my-applications')}
           >
             <MaterialIcons name="event" size={32} color="#fff" />
             <Text style={styles.statValue}>{stats.interviewsScheduled}</Text>
@@ -216,14 +378,12 @@ const EmployerDashboard: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: '#9C27B0' }]}
-            onPress={() => {
-              Alert.alert('Info', 'View analytics');
-            }}
+            style={[styles.statCard, { backgroundColor: '#4CAF50' }]}
+            onPress={() => router.push('/(jobseeker)/saved-jobs')}
           >
-            <MaterialIcons name="visibility" size={32} color="#fff" />
-            <Text style={styles.statValue}>{stats.viewsThisMonth}</Text>
-            <Text style={styles.statLabel}>Views</Text>
+            <MaterialIcons name="bookmark" size={32} color="#fff" />
+            <Text style={styles.statValue}>{stats.savedJobsCount}</Text>
+            <Text style={styles.statLabel}>Saved Jobs</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -234,18 +394,38 @@ const EmployerDashboard: React.FC = () => {
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push('/(employer)/create-job')}
+            onPress={() => router.push('/(jobseeker)/jobs')}
           >
             <View style={styles.actionIconContainer}>
-              <MaterialIcons name="add-circle" size={24} color="#4A90E2" />
+              <MaterialIcons name="search" size={24} color="#4A90E2" />
             </View>
-            <Text style={styles.actionText}>Post New Job</Text>
+            <Text style={styles.actionText}>Find Jobs</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(jobseeker)/saved-jobs')}
+          >
+            <View style={styles.actionIconContainer}>
+              <MaterialIcons name="bookmark" size={24} color="#4CAF50" />
+            </View>
+            <Text style={styles.actionText}>Saved Jobs</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(jobseeker)/my-applications')}
+          >
+            <View style={styles.actionIconContainer}>
+              <MaterialIcons name="description" size={24} color="#FF9800" />
+            </View>
+            <Text style={styles.actionText}>My Applications</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => {
-              Alert.alert('Info', 'AI matching coming soon');
+              Alert.alert('Info', 'AI Job Matching coming soon');
             }}
           >
             <View style={styles.actionIconContainer}>
@@ -256,47 +436,22 @@ const EmployerDashboard: React.FC = () => {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => {
-              Alert.alert('Info', 'Reports coming soon');
-            }}
-          >
-            <View style={styles.actionIconContainer}>
-              <MaterialIcons name="assessment" size={24} color="#FF9800" />
-            </View>
-            <Text style={styles.actionText}>View Reports</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              Alert.alert('Info', 'Workforce Analytics coming soon');
-            }}
-          >
-            <View style={styles.actionIconContainer}>
-              <MaterialIcons name="people" size={24} color="#00BCD4" />
-            </View>
-            <Text style={styles.actionText}>Workforce Analytics</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
             onPress={() => router.push('/(tabs)/profile')}
+          >
+            <View style={styles.actionIconContainer}>
+              <MaterialIcons name="person" size={24} color="#00BCD4" />
+            </View>
+            <Text style={styles.actionText}>My Profile</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(jobseeker)/settings')}
           >
             <View style={styles.actionIconContainer}>
               <MaterialIcons name="settings" size={24} color="#666" />
             </View>
             <Text style={styles.actionText}>Settings</Text>
-          </TouchableOpacity>
-
-          {/* ✅ Add Logout as Quick Action */}
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleLogout}
-          >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#FFEBEE' }]}>
-              <MaterialIcons name="logout" size={24} color="#F44336" />
-            </View>
-            <Text style={[styles.actionText, { color: '#F44336' }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -306,9 +461,7 @@ const EmployerDashboard: React.FC = () => {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Applications</Text>
           <TouchableOpacity
-            onPress={() => {
-              Alert.alert('Info', 'View all applications');
-            }}
+            onPress={() => router.push('/(jobseeker)/my-applications')}
           >
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
@@ -320,16 +473,16 @@ const EmployerDashboard: React.FC = () => {
               key={application.id}
               style={styles.applicationCard}
               onPress={() => {
-                Alert.alert('Info', `View application: ${application.candidateName}`);
+                router.push(`/(jobseeker)/application-details?id=${application.id}`);
               }}
             >
               <View style={styles.applicationHeader}>
                 <View style={styles.applicationAvatar}>
-                  <MaterialIcons name="person" size={24} color="#4A90E2" />
+                  <MaterialIcons name="work" size={24} color="#4A90E2" />
                 </View>
                 <View style={styles.applicationInfo}>
-                  <Text style={styles.candidateName}>{application.candidateName}</Text>
                   <Text style={styles.jobTitle}>{application.jobTitle}</Text>
+                  <Text style={styles.companyName}>{application.companyName}</Text>
                 </View>
                 <View
                   style={[
@@ -355,10 +508,16 @@ const EmployerDashboard: React.FC = () => {
         ) : (
           <View style={styles.emptyState}>
             <MaterialIcons name="inbox" size={64} color="#ccc" />
-            <Text style={styles.emptyStateText}>No recent applications</Text>
+            <Text style={styles.emptyStateText}>No applications yet</Text>
             <Text style={styles.emptyStateSubtext}>
-              Applications will appear here once candidates apply
+              Start applying to jobs to see your applications here
             </Text>
+            <TouchableOpacity
+              style={styles.browseJobsButton}
+              onPress={() => router.push('/(tabs)/jobs')}
+            >
+              <Text style={styles.browseJobsButtonText}>Browse Jobs</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -369,9 +528,9 @@ const EmployerDashboard: React.FC = () => {
         <View style={styles.tipCard}>
           <MaterialIcons name="lightbulb" size={24} color="#FFB800" />
           <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Boost Your Job Visibility</Text>
+            <Text style={styles.tipTitle}>Stand Out to Employers</Text>
             <Text style={styles.tipText}>
-              Add detailed job descriptions and requirements to attract better candidates
+              Complete your profile with skills, experience, and a professional resume to increase your chances
             </Text>
           </View>
         </View>
@@ -409,13 +568,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  companyName: {
+  userName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
     marginTop: 4,
   },
-  // ✅ New styles for header buttons
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -442,11 +600,77 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
-  // ✅ New logout button style
   logoutButton: {
     padding: 8,
     borderRadius: 8,
     backgroundColor: '#FFEBEE',
+  },
+  profileCompletionCard: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileCompletionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileCompletionInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  profileCompletionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  profileCompletionSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+  },
+  progressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    minWidth: 40,
+  },
+  completeProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E3F2FD',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  completeProfileButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4A90E2',
   },
   statsContainer: {
     padding: 20,
@@ -560,12 +784,12 @@ const styles = StyleSheet.create({
   applicationInfo: {
     flex: 1,
   },
-  candidateName: {
+  jobTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
-  jobTitle: {
+  companyName: {
     fontSize: 14,
     color: '#666',
     marginTop: 2,
@@ -604,6 +828,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
   },
+  browseJobsButton: {
+    marginTop: 20,
+    backgroundColor: '#4A90E2',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+  },
+  browseJobsButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   tipCard: {
     flexDirection: 'row',
     backgroundColor: '#FFF9E6',
@@ -630,4 +866,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EmployerDashboard;
+export default JobSeekerDashboard;

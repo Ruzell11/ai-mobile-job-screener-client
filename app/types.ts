@@ -142,6 +142,52 @@ export interface Job {
   updatedAt: string;
   employer?: Employer;
   skills?: JobSkill[];
+
+}
+
+export interface JobWithDetails extends Job {
+  _count?: {
+    applications: number;
+  };
+  isSaved?: boolean;
+  hasApplied?: boolean;
+}
+
+export interface JobsResponse {
+  data: {
+    jobs: JobWithDetails[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  };
+}
+
+export interface JobDetailsResponse {
+  data: JobWithDetails;
+}
+
+export interface SavedJobsResponse {
+  data: Array<{
+    id: string;
+    job: JobWithDetails;
+    savedAt: string;
+  }>;
+}
+
+export interface JobFilters {
+  search?: string;
+  location?: string;
+  employmentType?: EmploymentType;
+  experienceLevel?: ExperienceLevel;
+  salaryMin?: number;
+  salaryMax?: number;
+  skills?: string[];
+  isRemote?: boolean;
+  page?: number;
+  limit?: number;
 }
 
 export interface JobSkill {

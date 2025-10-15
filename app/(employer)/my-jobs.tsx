@@ -2,14 +2,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { employerAPI } from '../config/api';
 import { Job } from '../types';
@@ -155,14 +155,12 @@ export default function MyJobsScreen() {
         </TouchableOpacity>
 
         <View style={styles.iconActions}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() =>
-              Alert.alert('Edit Job', `Edit: ${item.title}`)
-            }
-          >
-            <MaterialIcons name="edit" size={20} color="#666" />
-          </TouchableOpacity>
+         <TouchableOpacity
+  style={styles.iconButton}
+  onPress={() => router.push(`/(employer)/edit-job?id=${item.id}`)}
+>
+  <MaterialIcons name="edit" size={20} color="#666" />
+</TouchableOpacity>
 
           <TouchableOpacity
             style={styles.iconButton}

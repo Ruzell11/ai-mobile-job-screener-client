@@ -1,25 +1,31 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import {
-    AIJobMatch,
-    ApiResponse,
-    Application,
-    Education,
-    Employer,
-    Experience,
-    Interview,
-    Job,
-    JobSeeker,
-    LoginResponse,
-    Notification,
-    PaginatedResponse,
-    RegisterRequest,
+  AIJobMatch,
+  ApiResponse,
+  Application,
+  Education,
+  Employer,
+  Experience,
+  Interview,
+  Job,
+  JobSeeker,
+  JobsResponse,
+  LoginResponse,
+  Notification,
+  PaginatedResponse,
+  RegisterRequest,
 } from '../types';
 
 const API_URL = 'http://192.168.1.6:5000/api'; // Change this to your backend URL
 // For Android emulator use: http://10.0.2.2:5000/api
 // For iOS simulator use: http://localhost:5000/api
 // For physical device use: http://YOUR_COMPUTER_IP:5000/api
+
+
+
+
+
 
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -77,6 +83,7 @@ export const authAPI = {
 
 // Job Seeker APIs
 export const jobSeekerAPI = {
+   getDashboard: () => api.get('/jobseeker/dashboard'),
   getProfile: () => 
     api.get<ApiResponse<JobSeeker>>('/job-seekers/profile'),
   
@@ -136,6 +143,32 @@ export const jobSeekerAPI = {
 
 // Job APIs
 export const jobAPI = {
+   saveJob: (jobId: string) => 
+    api.post(`/job-seekers/saved-jobs/${jobId}`),
+  
+  // Unsave a job
+  unsaveJob: (jobId: string) => 
+    api.delete(`/job-seekers/saved-jobs/${jobId}`),
+  
+  // Apply for a job
+  applyForJob: (jobId: string, data?: { coverLetter?: string }) => 
+    api.post(`/jobs/${jobId}/apply`, data),
+  
+  // Get my applications
+  getMyApplications: () => 
+    api.get('/job-seekers/applications'),
+  
+  // Get application status
+  getApplicationStatus: (jobId: string) => 
+    api.get(`/jobs/${jobId}/application-status`),
+  
+  // Get recommended jobs
+  getRecommendedJobs: () => 
+    api.get<JobsResponse>('/jobs/recommended'),
+  
+  // Get similar jobs
+  getSimilarJobs: (jobId: string) => 
+    api.get<JobsResponse>(`/jobs/${jobId}/similar`),
   getAllJobs: (params?: { 
     page?: number; 
     limit?: number; 
